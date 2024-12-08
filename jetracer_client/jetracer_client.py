@@ -13,10 +13,13 @@ class JetRacerClient:
         :param udp_port: UDP port for sending commands
         :param rtsp_port: RTSP port for video streaming
         """
+        self.jetracer_ip_rtsp = "192.168.10.2"
         self.jetracer_ip = jetracer_ip
         self.udp_port = udp_port
-        self.rtsp_url = f"rtsp://{jetracer_ip}:{rtsp_port}/test"
+        self.rtsp_url = f"rtsp://{self.jetracer_ip}:{rtsp_port}/test"
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.current_throttle = 0.0
+        self.current_steering = 0.0
 
     def send_command(self, command):
         """
@@ -44,6 +47,7 @@ class JetRacerClient:
         
         :param value: Throttle value (-1.0 to 1.0)
         """
+        self.current_throttle = value
         self.send_command(f"throttle {value}")
 
     def set_steering(self, value):
@@ -52,6 +56,7 @@ class JetRacerClient:
         
         :param value: Steering value (-1.0 to 1.0)
         """
+        self.current_steering = value
         self.send_command(f"steering {value}")
 
     def control(self, throttle, steering):
@@ -61,6 +66,8 @@ class JetRacerClient:
         :param throttle: Throttle value (-1.0 to 1.0)
         :param steering: Steering value (-1.0 to 1.0)
         """
+        self.current_throttle = throttle
+        self.current_steering = steering
         self.send_command(f"control {throttle} {steering}")
 
     def stream_on(self):
@@ -71,24 +78,9 @@ class JetRacerClient:
         """Stop the video stream."""
         self.send_command("streamoff")
 
-    def view_stream(self):
+    def get_video_capture(self):
         """
-        View the RTSP video stream using OpenCV.
+        Return the RTSP video stream using OpenCV.
         """
-        cap = cv2.VideoCapture(self.rtsp_url)
-        if not cap.isOpened():
-            print("Failed to open video stream.")
-            return
+        return cv2.VideoCapture(self.rtsp_url)
 
-        print("Press 'q' to exit.")
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                print("Failed to receive frame from video stream.")
-                break
-            cv2.imshow("JetRacer Stream", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()

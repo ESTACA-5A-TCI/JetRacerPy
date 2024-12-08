@@ -7,19 +7,95 @@ Description: Control JetRacer via UDP and stream video with RTSP.
 """
 
 import gi
-import socket
-import threading
-from gi.repository import Gst, GstRtspServer, GObject
-from jetracer.nvidia_racecar import NvidiaRacecar
-
 # Initialize GStreamer
 gi.require_version('Gst', '1.0')
 gi.require_version('GstRtspServer', '1.0')
+import socket
+import threading
+import subprocess
+from gi.repository import Gst, GstRtspServer, GObject
+from jetracer.nvidia_racecar import NvidiaRacecar
+
+
 Gst.init(None)
 # Configurez l'adresse IP du client et le port pour le streaming
 client_ip = "192.168.10.2"  # Remplacez par l'IP du client
 video_port = 11111
 
+# Fonction pour connecter le JetRacer à un réseau Wi-Fi existant
+def connect_to_wifi(ssid, password):
+    """
+    Connecte le JetRacer à un réseau Wi-Fi.
+    """
+    print(f"Connecting to Wi-Fi network: {ssid}")
+    wpa_supplicant_path = "/etc/wpa_supplicant/wpa_supplicant.conf"
+    try:
+        # Modifier le fichier de configuration wpa_supplicant
+        with open(wpa_supplicant_path, "w") as f:
+            f.write(f"""
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=US
+
+network={{
+    ssid="{ssid}"
+    psk="{password}"
+}}
+""")
+        # Redémarrer le service Wi-Fi
+        subprocess.run(["sudo", "wpa_cli", "-i", "wlan0", "reconfigure"], check=True)
+        print(f"Connected to Wi-Fi network: {ssid}")
+    except Exception as e:
+        print(f"Failed to connect to Wi-Fi: {e}")
+
+# Fonction pour créer un point d'accès Wi-Fi
+HOSTSPOT_SSID = "JetRacer_F2024"
+PASSWORD = "JetRacer"
+def create_hotspot(ssid=HOSTSPOT_SSID , password=PASSWORD):
+    """
+    Crée un point d'accès Wi-Fi.
+    """
+    print(f"Creating Wi-Fi hotspot: {ssid}")
+    try:
+        # Configuration du fichier hostapd
+        hostapd_path = "/etc/hostapd/hostapd.conf"
+        with open(hostapd_path, "w") as f:
+            f.write(f"""
+interface=wlan0
+driver=nl80211
+ssid={ssid}
+hw_mode=g
+channel=6
+wmm_enabled=1
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase={password}
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+""")
+        # Activer le point d'accès
+        subprocess.run(["sudo", "systemctl", "stop", "hostapd"], check=True)
+        subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"], check=True)
+        subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
+        subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
+        print(f"Wi-Fi hotspot {ssid} created.")
+    except Exception as e:
+        print(f"Failed to create hotspot: {e}")
+
+# Fonction pour déconnecter du réseau Wi-Fi
+def disconnect_wifi():
+    """
+    Déconnecte le JetRacer du réseau Wi-Fi actuel.
+    """
+    print("Disconnecting from Wi-Fi...")
+    try:
+        subprocess.run(["sudo", "wpa_cli", "-i", "wlan0", "disconnect"], check=True)
+        print("Disconnected from Wi-Fi.")
+    except Exception as e:
+        print(f"Failed to disconnect from Wi-Fi: {e}")
+
+create_hotspot(ssid=HOSTSPOT_SSID , password=PASSWORD)
 class RTSPServer:
     """RTSP Server to stream video from JetRacer's camera."""
     def __init__(self):
@@ -96,6 +172,14 @@ class JetRacerController:
             self.rtsp_server.start_streaming()
         elif command == "streamoff":
             self.rtsp_server.stop_streaming()
+        elif command.startswith("connect_wifi"):
+            _, ssid, password = command.split()
+            connect_to_wifi(ssid, password)
+        elif command.startswith("create_hotspot"):
+            #_, ssid, password = command.split()
+            create_hotspot()
+        elif command == "disconnect_wifi":
+            disconnect_wifi()
         else:
             print(f"Unknown command: {command}")
 
@@ -148,3 +232,5 @@ if __name__ == "__main__":
         print("Shutting down...")
     finally:
         controller.stop()
+
+
