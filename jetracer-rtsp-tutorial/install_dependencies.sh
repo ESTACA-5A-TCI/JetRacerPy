@@ -1,0 +1,1 @@
+apt-get install libgstrtspserver-1.0-dev
