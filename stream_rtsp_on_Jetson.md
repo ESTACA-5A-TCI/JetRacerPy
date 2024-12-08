@@ -99,3 +99,55 @@ Pour vérifier que tout fonctionne, utilisez un lecteur RTSP comme VLC depuis un
 3. Lancez et vous devriez voir le flux vidéo en direct.
 
 ---
+
+Vous rencontrez de la latence avec votre pipeline RTSP telle que définie. Plusieurs ajustements peuvent aider à réduire cette latence.
+
+### 1. Changer l’encodeur et ajuster ses paramètres
+
+`omxh264enc` peut être remplacé par `nvv4l2h264enc`, qui offre en général de meilleures performances sur Jetson. Vous pouvez également ajouter des paramètres spécifiques pour réduire la latence :
+
+```python
+self.factory.set_launch(
+    "nvarguscamerasrc ! video/x-raw(memory:NVMM),width=1280,height=720,framerate=30/1 "
+    "! nvv4l2h264enc iframeinterval=15 control-rate=1 bitrate=4000000 preset=low-latency-hp "
+    "! h264parse ! rtph264pay config-interval=1 name=pay0 pt=96"
+)
+```
+
+Explications :  
+- `iframeinterval=15` : Renforce la présence d’IFRames régulières.  
+- `control-rate=1` et `bitrate=4000000` : Contrôle du débit pour une meilleure stabilité. Ajustez le bitrate selon vos besoins.  
+- `preset=low-latency-hp` (si supporté par votre version) : Mode faible latence.  
+- `config-interval=1` dans `rtph264pay` : Envoie régulièrement les paramètres, aidant le client à se synchroniser plus rapidement.
+
+### 2. Ajuster le pipeline côté client
+
+La latence peut aussi provenir du client. Sur le client, si vous utilisez GStreamer :
+
+```bash
+gst-launch-1.0 rtspsrc location=rtsp://<jetson_ip>:8554/test latency=0 ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! autovideosink sync=false
+```
+
+- `latency=0` sur `rtspsrc` : supprime le buffering côté client.  
+- `sync=false` sur le sink vidéo : évite d’attendre la synchronisation sur le horodatage.
+
+Si vous utilisez VLC, essayez de réduire le caching réseau :  
+```
+vlc --network-caching=100 rtsp://<jetson_ip>:8554/test
+```
+
+### 3. Réduire la résolution ou le framerate
+
+Tester une résolution plus basse (ex. 640x480) et un framerate plus bas (ex. 15 fps) pour voir si la latence baisse. Si c’est le cas, c’est que votre encodage prend trop de temps, ou que le réseau ne suit pas.
+
+### 4. Réseau et environnement
+
+Assurez-vous d’utiliser un réseau filaire stable. Le Wi-Fi introduit souvent une latence variable. Pour des tests, branchez directement le Jetson et le client sur le même switch ou routeur, en Ethernet.
+
+### 5. Envisager d’autres protocoles
+
+Si la latence reste trop importante avec RTSP, envisager WebRTC. WebRTC est conçu pour la communication en temps réel et permet souvent des latences plus faibles que RTSP. Cependant, sa mise en place est plus complexe.
+
+---
+
+En somme, essayez d’abord de modifier l’encodeur, les paramètres du pipeline, et de réduire le buffering côté client. Vous devriez déjà voir une amélioration notable de la latence.
