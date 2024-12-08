@@ -22,80 +22,107 @@ Gst.init(None)
 client_ip = "192.168.10.2"  # Remplacez par l'IP du client
 video_port = 11111
 
-# Fonction pour connecter le JetRacer à un réseau Wi-Fi existant
-def connect_to_wifi(ssid, password):
-    """
-    Connecte le JetRacer à un réseau Wi-Fi.
-    """
-    print(f"Connecting to Wi-Fi network: {ssid}")
-    wpa_supplicant_path = "/etc/wpa_supplicant/wpa_supplicant.conf"
-    try:
-        # Modifier le fichier de configuration wpa_supplicant
-        with open(wpa_supplicant_path, "w") as f:
-            f.write(f"""
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=US
-
-network={{
-    ssid="{ssid}"
-    psk="{password}"
-}}
-""")
-        # Redémarrer le service Wi-Fi
-        subprocess.run(["sudo", "wpa_cli", "-i", "wlan0", "reconfigure"], check=True)
-        print(f"Connected to Wi-Fi network: {ssid}")
-    except Exception as e:
-        print(f"Failed to connect to Wi-Fi: {e}")
-
 # Fonction pour créer un point d'accès Wi-Fi
 HOSTSPOT_SSID = "JetRacer_F2024"
 PASSWORD = "JetRacer"
-def create_hotspot(ssid=HOSTSPOT_SSID , password=PASSWORD):
-    """
-    Crée un point d'accès Wi-Fi.
-    """
-    print(f"Creating Wi-Fi hotspot: {ssid}")
-    try:
-        # Configuration du fichier hostapd
-        hostapd_path = "/etc/hostapd/hostapd.conf"
-        with open(hostapd_path, "w") as f:
-            f.write(f"""
-interface=wlan0
-driver=nl80211
-ssid={ssid}
-hw_mode=g
-channel=6
-wmm_enabled=1
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase={password}
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-""")
-        # Activer le point d'accès
-        subprocess.run(["sudo", "systemctl", "stop", "hostapd"], check=True)
-        subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"], check=True)
-        subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
-        subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
-        print(f"Wi-Fi hotspot {ssid} created.")
-    except Exception as e:
-        print(f"Failed to create hotspot: {e}")
 
-# Fonction pour déconnecter du réseau Wi-Fi
-def disconnect_wifi():
-    """
-    Déconnecte le JetRacer du réseau Wi-Fi actuel.
-    """
-    print("Disconnecting from Wi-Fi...")
-    try:
-        subprocess.run(["sudo", "wpa_cli", "-i", "wlan0", "disconnect"], check=True)
-        print("Disconnected from Wi-Fi.")
-    except Exception as e:
-        print(f"Failed to disconnect from Wi-Fi: {e}")
+import subprocess
+import sys
 
-create_hotspot(ssid=HOSTSPOT_SSID , password=PASSWORD)
+# Variables globales de configuration
+WPA_SUPPLICANT_CONF = "/etc/wpa_supplicant/wpa_supplicant.conf"
+HOSTAPD_CONF = "/etc/hostapd/hostapd.conf"
+DNSMASQ_CONF = "/etc/dnsmasq.conf"
+WIFI_INTERFACE = "wlan0"
+
+def enable_station_mode(ssid, password):
+    # Arrêter hostapd et dnsmasq si actifs
+    subprocess.run(["sudo", "systemctl", "stop", "hostapd"], check=False)
+    subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"], check=False)
+
+    # Restaurer l'interface en mode normal (peut nécessiter de désactiver IP statique)
+    subprocess.run(["sudo", "ifconfig", WIFI_INTERFACE, "down"], check=False)
+    subprocess.run(["sudo", "ifconfig", WIFI_INTERFACE, "up"], check=False)
+
+    # Mettre à jour wpa_supplicant.conf
+    with open(WPA_SUPPLICANT_CONF, 'w') as f:
+        f.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n")
+        f.write("update_config=1\n")
+        f.write("country=FR\n\n")
+        f.write("network={\n")
+        f.write('    ssid="{}"\n'.format(ssid))
+        f.write('    psk="{}"\n'.format(password))
+        f.write("}\n")
+
+    # Redémarrer le gestionnaire réseau (ex: NetworkManager)
+    subprocess.run(["sudo", "systemctl", "restart", "network-manager"], check=True)
+    print("Mode station activé. Tentative de connexion à {}".format(ssid))
+
+def enable_hotspot_mode(ap_ssid, ap_password):
+    # Arrêter NetworkManager si nécessaire
+    subprocess.run(["sudo", "systemctl", "stop", "network-manager"], check=False)
+
+    # Assigner une IP statique à l'interface
+    subprocess.run(["sudo", "ifconfig", WIFI_INTERFACE, "192.168.4.1", "netmask", "255.255.255.0", "up"], check=True)
+
+    # Créer/mettre à jour hostapd.conf
+    with open(HOSTAPD_CONF, 'w') as f:
+        f.write("interface={}\n".format(WIFI_INTERFACE))
+        f.write("driver=nl80211\n")
+        f.write("ssid={}\n".format(ap_ssid))
+        f.write("hw_mode=g\n")
+        f.write("channel=6\n")
+        f.write("auth_algs=1\n")
+        f.write("wmm_enabled=1\n")
+        f.write("wpa=2\n")
+        f.write("wpa_passphrase={}\n".format(ap_password))
+        f.write("wpa_key_mgmt=WPA-PSK\n")
+        f.write("rsn_pairwise=CCMP\n")
+
+    # Créer/mettre à jour dnsmasq.conf
+    with open(DNSMASQ_CONF, 'w') as f:
+        f.write("interface={}\n".format(WIFI_INTERFACE))
+        f.write("dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h\n")
+        f.write("dhcp-option=3,192.168.4.1\n")
+        f.write("dhcp-option=6,192.168.4.1\n")
+
+    # Démarrer hostapd et dnsmasq
+    subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
+    subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
+    print("Point d'accès activé. SSID: {}, Mot de passe: {}".format(ap_ssid, ap_password))
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  {} station <ssid> <password>".format(sys.argv[0]))
+        print("  {} ap <ap_ssid> <ap_password>".format(sys.argv[0]))
+        sys.exit(1)
+
+    mode = sys.argv[1].lower()
+
+    if mode == "station":
+        if len(sys.argv) != 4:
+            print("Usage: {} station <ssid> <password>".format(sys.argv[0]))
+            sys.exit(1)
+        ssid = sys.argv[2]
+        password = sys.argv[3]
+        enable_station_mode(ssid, password)
+
+    elif mode == "ap":
+        if len(sys.argv) != 4:
+            print("Usage: {} ap <ap_ssid> <ap_password>".format(sys.argv[0]))
+            sys.exit(1)
+        ap_ssid = sys.argv[2]
+        ap_password = sys.argv[3]
+        enable_hotspot_mode(ap_ssid, ap_password)
+
+    else:
+        print("Mode inconnu. Utilisez 'station' ou 'ap'.")
+
+
+
+
+enable_hotspot_mode(HOSTSPOT_SSID , PASSWORD)
 class RTSPServer:
     """RTSP Server to stream video from JetRacer's camera."""
     def __init__(self):
@@ -174,12 +201,12 @@ class JetRacerController:
             self.rtsp_server.stop_streaming()
         elif command.startswith("connect_wifi"):
             _, ssid, password = command.split()
-            connect_to_wifi(ssid, password)
+            enable_station_mode(ssid, password)
         elif command.startswith("create_hotspot"):
             #_, ssid, password = command.split()
-            create_hotspot()
-        elif command == "disconnect_wifi":
-            disconnect_wifi()
+            enable_hotspot_mode(HOSTSPOT_SSID , PASSWORD)
+        #elif command == "disconnect_wifi":
+        #    disconnect_wifi()
         else:
             print(f"Unknown command: {command}")
 
