@@ -17,7 +17,7 @@ This SDK allows you to control a JetRacer robot and view its video stream using 
    ```
 
 2. Install dependencies:
-   ```bash
+   ```bash 
    pip install opencv-python
    ```
 

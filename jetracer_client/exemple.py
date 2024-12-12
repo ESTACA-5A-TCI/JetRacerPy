@@ -2,18 +2,16 @@ from jetracer_client import JetRacerClient
 import cv2
 import time
 
+
 def handle_key_press(key, jetracer, timex):
     """
     Handle key press events to control the JetRacer.
     :param key: Key code pressed.
     :param jetracer: JetRacerClient instance.
     """
-    
+
     throttle_step = 0.15
     steering_step = 0.4
- 
-
-
 
     if key == 27:  # ESC
         return False
@@ -33,9 +31,12 @@ def handle_key_press(key, jetracer, timex):
         jetracer.control(0.0, 0.0)
     return True
 
+
 if __name__ == "__main__":
     # Replace with your JetRacer's IP address
-    JETRACER_IP = "192.168.1.166"
+    # JETRACER_IP = "192.168.1.166"
+    
+    JETRACER_IP = "192.168.4.1"
 
     # Initialize the JetRacer client
     jetracer = JetRacerClient(jetracer_ip=JETRACER_IP)
@@ -69,14 +70,13 @@ if __name__ == "__main__":
 
         # Display the video stream
         cv2.imshow("JetRacer Stream", frame)
-        timex = (timex + 1) % 60 
+        timex = (timex + 1) % 60
 
         # Capture key press
         key = cv2.waitKey(1) & 0xFF
         # Handle key press for JetRacer control
         if not handle_key_press(key, jetracer, timex):
             break
-        
 
     # Release resources
     cap.release()

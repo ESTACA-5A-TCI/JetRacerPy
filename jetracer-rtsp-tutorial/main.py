@@ -129,9 +129,8 @@ class RTSPServer:
         self.server = GstRtspServer.RTSPServer()
         self.factory = GstRtspServer.RTSPMediaFactory()
         self.factory.set_launch((
-            "nvarguscamerasrc ! video/x-raw(memory:NVMM),width=1280,height=720,framerate=30/1 "
-            "! nvv4l2h264enc iframeinterval=15 control-rate=1 bitrate=4000000 preset=low-latency-hp "
-            f"! h264parse ! rtph264pay config-interval=1 name=pay0 pt=96 ! udpsink host={client_ip} port={video_port}"
+            "nvarguscamerasrc ! video/x-raw(memory:NVMM),width=1280,height=720,framerate=120/1 "
+            "! omxh264enc ! rtph264pay config-interval=1 name=pay0 pt=96"
         ))
         self.factory.set_shared(True)
         self.server.get_mount_points().add_factory("/test", self.factory)
@@ -152,11 +151,38 @@ class RTSPServer:
             self.server.remove_mount_points()
             self.streaming = False
 
+from jetcard.utils import power_mode #ip_address , power_usage, cpu_usage, gpu_usage, memory_usage, disk_usage
+from jetcard import ina219
+import os
+class jetRacerStates:
+    def __init__(self):
+        adress_41 = os.popen("i2cdetect -y -r 1 0x41 0x41 | egrep '41' | '{print $2}'").read()
+        adress_42 = os.popen("i2cdetect -y -r 1 0x42 0x42 | egrep '42' | '{print $2}'").read()
+        if (adress_41 =='41\n'):
+            self.ina = ina219.INA219(addr=0x41)
+        elif (adress_42 == '42\n'):
+            self.ina = ina219.INA219(addr=0x42)
+        else:
+            self.ina = None
+    def get_jetracer_state(self):
+        if self.ina is None:
+            return "electric_state ?? ?? ?? ??"
+        bus_voltage = self.ina.getBusVoltage_V()
+        current     = self.ina.getgetCurrent_mA()/1000.0
+        battery     = 100.0*(bus_voltage - 6.0)/2.4
+        if (battery > 100): battery = 100
+        elif (battery < 0): battery = 0
+        return f"electric_state {power_mode()} {bus_voltage:.2f} {current:.2f} {battery:.2f}"
+    
 
+    
+        
 class JetRacerController:
     """Controller for handling JetRacer commands."""
     def __init__(self):
         self.car = NvidiaRacecar()
+        self.car.throttle = 0
+        self.car.steering = 0
         self.rtsp_server = RTSPServer()
         self.running = True
 
