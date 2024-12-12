@@ -1,0 +1,11 @@
+[Unit]
+   Description= run rtsp stream  server
+   After=network.target
+
+   [Service]
+   ExecStart=/usr/bin/python3 ~/jetracer_server/main.py
+   Restart=always
+   User=nom_utilisateur
+
+   [Install]
+   WantedBy=multi-user.target
