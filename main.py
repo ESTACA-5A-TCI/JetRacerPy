@@ -14,7 +14,7 @@ import socket
 import threading
 import subprocess
 import sys
-import os
+import os, time
 
 from gi.repository import Gst, GstRtspServer, GObject
 from jetracer.nvidia_racecar import NvidiaRacecar
@@ -31,40 +31,40 @@ class WifiConfig:
     HOSTAPD_CONF = "/etc/hostapd/hostapd.conf"
     DNSMASQ_CONF = "/etc/dnsmasq.conf"
     WIFI_INTERFACE = "wlan0"
-    AP_SSID_PASSWORD = "JetRacer_F2024" 
+    AP_IP = "192.168.4.1" 
     
 
     @classmethod
     def enable_station_mode(cls, ssid, password):
         # Arrêter hostapd et dnsmasq si actifs
-        subprocess.run(["sudo", "systemctl", "stop", "hostapd"], check=False)
-        subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"], check=False)
+        subprocess.run(["systemctl", "stop", "hostapd"], check=False)
+        subprocess.run(["systemctl", "stop", "dnsmasq"], check=False)
 
         # Restaurer l'interface en mode normal (peut nécessiter de désactiver IP statique)
-        subprocess.run(["sudo", "ifconfig", cls.WIFI_INTERFACE, "down"], check=False)
-        subprocess.run(["sudo", "ifconfig", cls.WIFI_INTERFACE, "up"], check=False)
+        subprocess.run(["ifconfig", cls.WIFI_INTERFACE, "down"], check=False)
+        subprocess.run(["ifconfig", cls.WIFI_INTERFACE, "up"], check=False)
 
         # Mettre à jour wpa_supplicant.conf
         subprocess.run(["nmcli", "device", "wifi", "connect", ssid,  "password", password], check=False)
 
         # Redémarrer le gestionnaire réseau (ex: NetworkManager)
-        subprocess.run(["sudo", "systemctl", "start", "wpa_supplicant"], check=True)
-        subprocess.run(["sudo", "systemctl", "start", "network-manager"], check=True)
+        subprocess.run(["systemctl", "start", "wpa_supplicant"], check=True)
+        subprocess.run(["systemctl", "start", "network-manager"], check=True)
         print("Mode station activé. Tentative de connexion à {}".format(ssid))
 
     @classmethod
     def enable_hotspot_mode(cls):
         # Arrêter NetworkManager si nécessaire
-        subprocess.run(["sudo", "systemctl", "stop", "wpa_supplicant"], check=False)
-        subprocess.run(["sudo", "systemctl", "stop", "network-manager"], check=False)
+        subprocess.run(["systemctl", "stop", "wpa_supplicant"], check=False)
+        subprocess.run(["systemctl", "stop", "network-manager"], check=False)
 
         # Assigner une IP statique à l'interface
-        subprocess.run(["sudo", "ifconfig", cls.WIFI_INTERFACE, "192.168.4.1", "netmask", "255.255.255.0", "up"], check=True)
+        subprocess.run(["ifconfig", cls.WIFI_INTERFACE, cls.AP_IP, "netmask", "255.255.255.0", "up"], check=True)
 
         # Démarrer hostapd et dnsmasq
-        subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
-        subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
-        print("Point d'accès activé. SSID: {}, Mot de passe: {}".format(cls.AP_SSID_PASSWORD, cls.AP_SSID_PASSWORD))
+        subprocess.run(["systemctl", "start", "hostapd"], check=True)
+        subprocess.run(["systemctl", "start", "dnsmasq"], check=True)
+        
 
 
 class RTSPServer:
@@ -121,13 +121,13 @@ class jetRacerStates:
         
 class JetRacerController:
     """Controller for handling JetRacer commands."""
-    def __init__(self, ap_ssid_password):
+    def __init__(self, ap_ip):
         self.car = NvidiaRacecar()
         self.car.throttle = 0
         self.car.steering = 0
         self.rtsp_server = RTSPServer()
         self.wifi_config = WifiConfig()
-        self.wifi_config.AP_SSID_PASSWORD = ap_ssid_password
+        self.wifi_config.AP_IP = ap_ip
         self.running = True
 
     def handle_command(self, command):
@@ -214,7 +214,8 @@ class UDPServer:
 
 
 if __name__ == "__main__":
-    controller = JetRacerController("JetRacer_A2425")
+    controller = JetRacerController("192.168.4.2")
+    controller.wifi_config.enable_hotspot_mode()
     udp_server = UDPServer("0.0.0.0", 8889, controller)
 
     # Start the UDP server in a separate thread
