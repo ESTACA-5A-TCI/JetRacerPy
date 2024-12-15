@@ -1,6 +1,7 @@
 import socket
 import cv2
 
+
 class JetRacerClient:
     """
     SDK Client for controlling the JetRacer via UDP and accessing its video stream.
@@ -83,4 +84,6 @@ class JetRacerClient:
         Return the RTSP video stream using OpenCV.
         """
         return cv2.VideoCapture(self.rtsp_url)
+    
+    
 

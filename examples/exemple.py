@@ -1,4 +1,4 @@
-from jetracer_client import JetRacerClient
+from jetracerpy.jetracer_client import JetRacerClient
 import cv2
 import time
 
@@ -34,8 +34,9 @@ def handle_key_press(key, jetracer, timex):
 
 if __name__ == "__main__":
     # Replace with your JetRacer's IP address
-    # JETRACER_IP = "192.168.1.166"
+    #JETRACER_IP = "192.168.1.166"
     
+
     JETRACER_IP = "192.168.4.1"
 
     # Initialize the JetRacer client
@@ -54,7 +55,7 @@ if __name__ == "__main__":
         print("Failed to open video stream.")
         exit()
 
-    print("Press 'q' to exit.")
+    print("Press 'ESC' to exit.")
     print("Use 'Z' (forward), 'S' (backward), 'Q' (left), 'D' (right), and 'Space' to stop.")
 
     # Initialize throttle and steering

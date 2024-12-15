@@ -35,7 +35,10 @@ client = JetRacerClient("192.168.10.1")
 client.start()
 client.control(0.5, -0.3)
 client.stream_on()
-client.view_stream()
+cap = client.get_video_capture()
+_, frame = cap.read()
+cv2.imshow("JetRacer Stream", frame)
+client.stream_off()
 client.stop()
 ```
 
@@ -48,7 +51,7 @@ client.stop()
 - `control(throttle, steering)` - Set throttle and steering simultaneously.
 - `stream_on()` - Start the video stream.
 - `stream_off()` - Stop the video stream.
-- `view_stream()` - View the video stream using OpenCV.
+- `get_video_capture()` - Get the video stream with cv2 capture object.
 
 ## Dependencies
 - Python 3.x
