@@ -1,9 +1,9 @@
 from jetracerpy.jetracer_client import JetRacerClient
 import cv2
-import time
 
 
-def handle_key_press(key, jetracer, timex):
+
+def handle_key_press(key, jetracer):
     """
     Handle key press events to control the JetRacer.
     :param key: Key code pressed.
@@ -17,18 +17,18 @@ def handle_key_press(key, jetracer, timex):
         return False
     elif key == ord('z'):  # Increase throttle (move forward)
         current_throttle = min(1.0,  throttle_step)
-        jetracer.control(current_throttle, jetracer.current_steering)
+        jetracer.send_rc_control(current_throttle, jetracer.current_steering)
     elif key == ord('s'):  # Decrease throttle (move backward)
         current_throttle = max(-1.0, -throttle_step-0.2)
-        jetracer.control(current_throttle, jetracer.current_steering)
+        jetracer.send_rc_control(current_throttle, jetracer.current_steering)
     elif key == ord('q'):  # Turn left
         current_steering = max(-1.0, -steering_step)
-        jetracer.control(jetracer.current_throttle, current_steering)
+        jetracer.send_rc_control(jetracer.current_throttle, current_steering)
     elif key == ord('d'):  # Turn right
         current_steering = min(1.0, steering_step)
-        jetracer.control(jetracer.current_throttle, current_steering)
+        jetracer.send_rc_control(jetracer.current_throttle, current_steering)
     elif key == ord(' '):  # Stop
-        jetracer.control(0.0, 0.0)
+        jetracer.send_rc_control(0.0, 0.0)
     return True
 
 
@@ -46,7 +46,6 @@ if __name__ == "__main__":
     print("Starting JetRacer...")
     jetracer.start()
 
-    input("Press Enter to start video streaming...")
     jetracer.stream_on()
 
     # Get video capture object
@@ -61,7 +60,7 @@ if __name__ == "__main__":
     # Initialize throttle and steering
     jetracer.current_throttle = 0.0
     jetracer.current_steering = 0.0
-    jetracer.control(jetracer.current_throttle, jetracer.current_steering)
+    jetracer.send_rc_control(jetracer.current_throttle, jetracer.current_steering)
     timex = 0
     while True:
         ret, frame = cap.read()
@@ -71,16 +70,15 @@ if __name__ == "__main__":
 
         # Display the video stream
         cv2.imshow("JetRacer Stream", frame)
-        timex = (timex + 1) % 60
         
         # Read the electrical state already received in the background
-        state = jetracer.get_current_state()
-        print("Current JetRacer state:", state) 
+        #state = jetracer.get_current_state()
+        #print("Current JetRacer state:", state) 
 
         # Capture key press
         key = cv2.waitKey(1) & 0xFF
         # Handle key press for JetRacer control
-        if not handle_key_press(key, jetracer, timex):
+        if not handle_key_press(key, jetracer):
             break
 
     # Release resources
