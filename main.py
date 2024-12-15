@@ -332,6 +332,7 @@ class UDPServer:
 # -------------------------------------------
 if __name__ == "__main__":
     controller = JetRacerController()
+    controller.wifi_config.enable_hotspot_mode()
     udp_server = UDPServer("0.0.0.0", 8889, controller, send_interval=2.0)
 
     # Démarre tout dans le thread principal
