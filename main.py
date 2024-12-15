@@ -77,7 +77,8 @@ class RTSPServer:
             "! omxh264enc ! rtph264pay config-interval=1 name=pay0 pt=96"
         ))
         self.factory.set_shared(True)
-        self.server.get_mount_points().add_factory("/test", self.factory)
+        self.mounts  = self.server.get_mount_points()
+        self.mounts.add_factory("/test", self.factory)
         self.server.attach(None)
         self.streaming = False
 
@@ -92,7 +93,7 @@ class RTSPServer:
         """Stop the RTSP video stream."""
         if self.streaming:
             print("Stopping video stream...")
-            self.server.remove_mount_points()
+            self.mounts.remove_factory("/test")
             self.streaming = False
 
 
@@ -127,6 +128,7 @@ class JetRacerController:
         self.car.steering = 0
         self.rtsp_server = RTSPServer()
         self.wifi_config = WifiConfig()
+        self.jetracer_states = jetRacerStates()
         self.wifi_config.AP_IP = ap_ip
         self.running = True
         self.can_receive_command = False
@@ -134,6 +136,7 @@ class JetRacerController:
     def handle_command(self, command):
         """Process UDP commands and control the JetRacer."""
         command = command.strip().lower()
+        response = None
         if command == "start":
             print("Starting JetRacer...")
             self.car.throttle = 0
@@ -199,7 +202,6 @@ class JetRacerController:
                 value = float(command.split()[1])
                 self.car.throttle_gain = value
                 response = f"throttle_gain {value}"
-                print(response)
             except Exception as e:
                 print(f"Error setting throttle_gain: {e}")
 
@@ -209,7 +211,6 @@ class JetRacerController:
                 value = float(command.split()[1])
                 self.car.steering_gain = value
                 response = f"steering_gain {value}"
-                print(response)
             except Exception as e:
                 print(f"Error setting steering_gain: {e}")
 
@@ -219,7 +220,6 @@ class JetRacerController:
                 value = float(command.split()[1])
                 self.car.steering_offset = value
                 response = f"steering_offset {value}"
-                print(response)
             except Exception as e:
                 print(f"Error setting steering_offset: {e}")
         
@@ -230,19 +230,16 @@ class JetRacerController:
         elif command.startswith("get_steering_gain") and self.can_receive_command:
             value = self.car.steering_gain
             response = f"steering_gain {value}"
-            print(response)
 
         elif command.startswith("get_steering_offset") and self.can_receive_command:
             value = self.car.steering_offset 
             response = f"steering_offset {value}"
-            print(response)
 
         else:
             if self.can_receive_command:
                 response = f"Unknown command: {command}"
             else:
                 response = "Send 'start' command"
-            print(response)
         
         return response
 
