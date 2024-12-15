@@ -33,7 +33,7 @@ from jetracer_client import JetRacerClient
 
 client = JetRacerClient("192.168.10.1")
 client.start()
-client.control(0.5, -0.3)
+client.control(0.0, -0.3)
 client.stream_on()
 cap = client.get_video_capture()
 _, frame = cap.read()

@@ -79,6 +79,19 @@ class JetRacerClient:
         """Stop the video stream."""
         self.send_command("streamoff")
 
+    def set_throttle_gain(self, value):
+        """ set throtle gain """
+        self.send_command("throttle_gain {value}")
+    
+    def set_steering_gain(self, value):
+        """ set throtle gain """
+        self.send_command("steering_gain {value}")
+    
+    def set_steering_offset(self, value):
+        """ set throtle gain """
+        self.send_command("steering_offset {value}")
+    
+    
     def get_video_capture(self):
         """
         Return the RTSP video stream using OpenCV.
