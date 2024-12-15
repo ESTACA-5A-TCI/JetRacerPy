@@ -93,14 +93,14 @@ class RTSPServer:
         """Stop the RTSP video stream."""
         if self.streaming:
             print("Stopping video stream...")
-            self.mounts.remove_factory("/test")
+            #self.mounts.remove_factory("/test")
             self.streaming = False
 
 
 class jetRacerStates:
     def __init__(self):
-        adress_41 = os.popen("i2cdetect -y -r 1 0x41 0x41 | egrep '41' | '{print $2}'").read()
-        adress_42 = os.popen("i2cdetect -y -r 1 0x42 0x42 | egrep '42' | '{print $2}'").read()
+        adress_41 = os.popen("i2cdetect -y -r 1 0x41 0x41 | egrep '41' | awk '{print $2}'").read()
+        adress_42 = os.popen("i2cdetect -y -r 1 0x42 0x42 | egrep '42' | awk '{print $2}'").read()
         if (adress_41 =='41\n'):
             self.ina = ina219.INA219(addr=0x41)
         elif (adress_42 == '42\n'):
@@ -109,9 +109,9 @@ class jetRacerStates:
             self.ina = None
     def get_jetracer_state(self):
         if self.ina is None:
-            return "electric_state ?? ?? ?? ??"
+            return "electric_state M0 0.0 0.0 0.0"
         bus_voltage = self.ina.getBusVoltage_V()
-        current     = self.ina.getgetCurrent_mA()/1000.0
+        current     = self.ina.getCurrent_mA()/1000.0
         battery     = 100.0*(bus_voltage - 6.0)/2.4
         if (battery > 100): battery = 100
         elif (battery < 0): battery = 0
@@ -328,7 +328,7 @@ class UDPServer:
 # -------------------------------------------
 if __name__ == "__main__":
     controller = JetRacerController()
-    controller.wifi_config.enable_hotspot_mode()
+    #controller.wifi_config.enable_hotspot_mode()
     udp_server = UDPServer("0.0.0.0", 8889, controller, send_interval=2.0)
 
     # Démarre tout dans le thread principal
