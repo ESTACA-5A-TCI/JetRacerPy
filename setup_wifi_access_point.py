@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+"""
+Setup WIFI Access Point
+Author: Fouad KHENFRI
+Date: 15-12-2024
+Description: Config Jetson to acceept create WIFI access point.
+"""
+
 import argparse
 
 # Global configuration variables
