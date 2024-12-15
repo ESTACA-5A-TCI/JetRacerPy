@@ -122,14 +122,13 @@ class jetRacerStates:
         
 class JetRacerController:
     """Controller for handling JetRacer commands."""
-    def __init__(self, ap_ip):
+    def __init__(self):
         self.car = NvidiaRacecar()
         self.car.throttle = 0
         self.car.steering = 0
         self.rtsp_server = RTSPServer()
         self.wifi_config = WifiConfig()
         self.jetracer_states = jetRacerStates()
-        self.wifi_config.AP_IP = ap_ip
         self.running = True
         self.can_receive_command = False
 
