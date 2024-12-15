@@ -1,11 +1,13 @@
 [Unit]
-   Description= run rtsp stream  server
-   After=network.target
+Description=JetRacer RTSP service
+After=network.target graphical.target multi-user.target
 
-   [Service]
-   ExecStart=/usr/bin/python3 ~/jetracer_server/main.py
-   Restart=always
-   User=nom_utilisateur
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/sh -c "python3 /home/jetson/jetracer_server/main.py"
+WorkingDirectory=/home/jetson
+Restart=always
 
-   [Install]
-   WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
