@@ -13,7 +13,7 @@ gi.require_version('GstRtspServer', '1.0')
 import socket
 import threading
 import subprocess
-import sys
+import time
 import os
 
 from gi.repository import Gst, GstRtspServer, GObject
@@ -129,6 +129,7 @@ class JetRacerController:
         self.wifi_config = WifiConfig()
         self.wifi_config.AP_SSID_PASSWORD = ap_ssid_password
         self.running = True
+        self.can_receive_command = False
 
     def handle_command(self, command):
         """Process UDP commands and control the JetRacer."""
@@ -137,25 +138,33 @@ class JetRacerController:
             print("Starting JetRacer...")
             self.car.throttle = 0
             self.car.steering = 0
+            self.can_receive_command = True
+            response = "ok"
+        
         elif command == "stop":
             print("Stopping JetRacer...")
             self.car.throttle = 0
             self.car.steering = 0
-        elif command.startswith("throttle"):
+            self.can_receive_command = False
+            response = "ok"
+        
+        elif command.startswith("throttle") and self.can_receive_command:
             try:
                 value = float(command.split()[1])
                 self.car.throttle = value
                 print(f"Throttle set to: {value}")
             except Exception as e:
                 print(f"Throttle command error: {e}")
-        elif command.startswith("steering"):
+        
+        elif command.startswith("steering") and self.can_receive_command:
             try:
                 value = float(command.split()[1])
                 self.car.steering = value
                 print(f"Steering set to: {value}")
             except Exception as e:
                 print(f"Steering command error: {e}")
-        elif command.startswith("control"):
+        
+        elif command.startswith("control") and self.can_receive_command:
             try:
                 parts = command.split()
                 throttle_value = float(parts[1])
@@ -165,20 +174,77 @@ class JetRacerController:
                 print(f"Control command: Throttle={throttle_value}, Steering={steering_value}")
             except Exception as e:
                 print(f"Control command error: {e}")
-        elif command == "streamon":
+        
+        elif command == "streamon" and self.can_receive_command:
             self.rtsp_server.start_streaming()
-        elif command == "streamoff":
+            response = "streaming on"
+        
+        elif command == "streamoff" and self.can_receive_command:
             self.rtsp_server.stop_streaming()
-        elif command.startswith("connect_wifi"):
+            response = "streaming off"
+
+        elif command.startswith("connect_wifi") and self.can_receive_command:
             _, ssid, password = command.split()
             self.wifi_config.enable_station_mode(ssid, password)
-        elif command.startswith("connect_hotspot"):
+            response = "wifi setup"
+        
+        elif command.startswith("connect_hotspot") and self.can_receive_command:
             #_, ssid, password = command.split()
             self.wifi_config.enable_hotspot_mode()
-        #elif command == "disconnect_wifi":
-        #    disconnect_wifi()
+            response = "hostspot setup"
+
+        elif command.startswith("set_throttle_gain") and self.can_receive_command:
+            # Usage : "set_throttle_gain 1.2"
+            try:
+                value = float(command.split()[1])
+                self.car.throttle_gain = value
+                response = f"throttle_gain {value}"
+                print(response)
+            except Exception as e:
+                print(f"Error setting throttle_gain: {e}")
+
+        elif command.startswith("set_steering_gain") and self.can_receive_command:
+            # Usage : "set_steering_gain 1.1"
+            try:
+                value = float(command.split()[1])
+                self.car.steering_gain = value
+                response = f"steering_gain {value}"
+                print(response)
+            except Exception as e:
+                print(f"Error setting steering_gain: {e}")
+
+        elif command.startswith("set_steering_offset") and self.can_receive_command:
+            # Usage : "set_steering_offset 0.05"
+            try:
+                value = float(command.split()[1])
+                self.car.steering_offset = value
+                response = f"steering_offset {value}"
+                print(response)
+            except Exception as e:
+                print(f"Error setting steering_offset: {e}")
+        
+        elif command.startswith("get_throttle_gain") and self.can_receive_command:
+            value = self.car.throttle_gain
+            response = f"throttle_gain {value}"
+
+        elif command.startswith("get_steering_gain") and self.can_receive_command:
+            value = self.car.steering_gain
+            response = f"steering_gain {value}"
+            print(response)
+
+        elif command.startswith("get_steering_offset") and self.can_receive_command:
+            value = self.car.steering_offset 
+            response = f"steering_offset {value}"
+            print(response)
+
         else:
-            print(f"Unknown command: {command}")
+            if self.can_receive_command:
+                response = f"Unknown command: {command}"
+            else:
+                response = "Send 'start' command"
+            print(response)
+        
+        return response
 
     def stop(self):
         """Stop the controller and cleanup."""
@@ -187,39 +253,90 @@ class JetRacerController:
         self.car.steering = 0
         self.rtsp_server.stop_streaming()
 
-
+# -------------------------------------------
+#  Classe UDPServer
+# -------------------------------------------
 class UDPServer:
-    """UDP Server to receive commands."""
-    def __init__(self, host, port, controller):
+    """UDP Server to receive commands et envoyer l'état périodiquement."""
+    def __init__(self, host, port, controller, send_interval=1.0):
+        """
+        :param host: IP d'écoute (ex: "0.0.0.0")
+        :param port: Port d'écoute UDP
+        :param controller: Instance de JetRacerController
+        :param send_interval: Intervalle en secondes pour envoyer l'état
+        """
         self.host = host
         self.port = port
         self.controller = controller
+        self.send_interval = send_interval
+
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((self.host, self.port))
+
+        self.last_addr = None  # On mémorise la dernière adresse qui nous a envoyé une commande
 
     def start(self):
-        """Start the UDP server."""
+        """Démarre le serveur UDP et un thread pour envoi périodique des states."""
         print(f"UDP server listening on {self.host}:{self.port}")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind((self.host, self.port))
 
+        # Thread pour la réception de commandes
+        recv_thread = threading.Thread(target=self.recv_commands)
+        recv_thread.daemon = True
+        recv_thread.start()
+
+        # Thread pour l'envoi périodique du state
+        send_thread = threading.Thread(target=self.send_state_periodically)
+        send_thread.daemon = True
+        send_thread.start()
+
+        # Boucle principale : on attend que le controller s'arrête (Ctrl+C ou autre)
+        while self.controller.running:
+            time.sleep(0.5)
+
+        self.sock.close()
+
+    def recv_commands(self):
+        """Boucle de réception des commandes UDP."""
         while self.controller.running:
             try:
-                data, addr = sock.recvfrom(1024)
+                data, addr = self.sock.recvfrom(1024)
                 command = data.decode('utf-8')
                 print(f"Received command: {command} from {addr}")
-                self.controller.handle_command(command)
+
+                # Mémorise l'adresse pour pouvoir lui renvoyer des infos
+                self.last_addr = addr
+
+                # On demande au controller de traiter la commande
+                response = self.controller.handle_command(command)
+                
+                # S'il y a une réponse, on la renvoie au client
+                if response is not None:
+                    self.sock.sendto(response.encode('utf-8'), addr)
+
             except Exception as e:
                 print(f"UDP server error: {e}")
+                break
 
-        sock.close()
+    def send_state_periodically(self):
+        """Envoi périodique de l'état électrique de la JetRacer."""
+        while self.controller.running:
+            time.sleep(self.send_interval)
+            if self.last_addr is not None:
+                # Récupère l'état actuel
+                state_str = self.controller.jetracer_states.get_jetracer_state()
+                # Envoie à la dernière adresse connue
+                self.sock.sendto(state_str.encode('utf-8'), self.last_addr)
 
-
+# -------------------------------------------
+#  Programme principal
+# -------------------------------------------
 if __name__ == "__main__":
-    controller = JetRacerController("JetRacer_A2425")
-    udp_server = UDPServer("0.0.0.0", 8889, controller)
+    controller = JetRacerController()
+    udp_server = UDPServer("0.0.0.0", 8889, controller, send_interval=2.0)
 
-    # Start the UDP server in a separate thread
-    udp_thread = threading.Thread(target=udp_server.start)
-    udp_thread.start()
+    # Démarre tout dans le thread principal
+    server_thread = threading.Thread(target=udp_server.start)
+    server_thread.start()
 
     try:
         # Main GObject loop for RTSP server
@@ -229,5 +346,4 @@ if __name__ == "__main__":
         print("Shutting down...")
     finally:
         controller.stop()
-
-
+        server_thread.join()
