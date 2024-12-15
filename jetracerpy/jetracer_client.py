@@ -165,7 +165,6 @@ class JetRacerClient:
 
     def stop(self):
         """Stop (disable) the JetRacer controls."""
-        # Pas de retour direct nécessaire
         response = self.send_command_return_response("stop")
         if "ok" == response:
             self.can_send_commands = False
