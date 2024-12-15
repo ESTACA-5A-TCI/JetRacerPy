@@ -72,6 +72,10 @@ if __name__ == "__main__":
         # Display the video stream
         cv2.imshow("JetRacer Stream", frame)
         timex = (timex + 1) % 60
+        
+        # Read the electrical state already received in the background
+        state = jetracer.get_current_state()
+        print("Current JetRacer state:", state) 
 
         # Capture key press
         key = cv2.waitKey(1) & 0xFF
@@ -86,3 +90,5 @@ if __name__ == "__main__":
 
     print("Stopping JetRacer...")
     jetracer.stop()
+    jetracer.close()     # Ferme la socket et le thread
+
